@@ -1,4 +1,6 @@
+from distutils.log import debug
 import sqlite3
+import logging
 
 from flask import Flask, jsonify, json, render_template, request, url_for, redirect, flash
 from werkzeug.exceptions import abort
@@ -36,13 +38,16 @@ def index():
 def post(post_id):
     post = get_post(post_id)
     if post is None:
-      return render_template('404.html'), 404
+        logging.error("An article with id  : " + str(post_id) + " does not exisits.")
+        return render_template('404.html'), 404
     else:
-      return render_template('post.html', post=post)
+        logging.info("An article retrieved is : " + post["title"])
+        return render_template('post.html', post=post)
 
 # Define the About Us page
 @app.route('/about')
 def about():
+    logging.debug("The About Us page is retrieved.")
     return render_template('about.html')
 
 # Define the post creation functionality 
@@ -60,11 +65,28 @@ def create():
                          (title, content))
             connection.commit()
             connection.close()
-
+            logging.info("A new article : " + title + " is created")
             return redirect(url_for('index'))
 
     return render_template('create.html')
 
+@app.route('/healthz')
+def healthCheck():
+    return app.response_class(response=json.dumps({"result": "OK - healthy"}),
+            status=200,
+            mimetype='application/json')
+
+@app.route('/metrics')
+def metrics():
+    connection = get_db_connection()
+    posts = connection.execute('SELECT * FROM posts').fetchall()
+    total_connections = 1
+    connection.close()
+    return app.response_class(response=json.dumps({"db_connection_count": total_connections, "post_count": len(posts)}),
+            status=200,
+            mimetype='application/json')
+
 # start the application on port 3111
 if __name__ == "__main__":
-   app.run(host='0.0.0.0', port='3111')
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s')
+    app.run(host='0.0.0.0', port='3111')
